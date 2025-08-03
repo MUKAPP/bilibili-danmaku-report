@@ -320,7 +320,6 @@
         if (reportState === 'paused') {
             reportState = 'running';
             logToUI("<b>举报已恢复。</b>", 'warn');
-            processReportQueue();
             return;
         }
 
