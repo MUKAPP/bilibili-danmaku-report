@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bilibili 弹幕批量举报
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  在B站视频页左下角添加一个悬浮的“批量举报”按钮，获取全部弹幕，并直接调用API进行举报。支持UI配置规则、暂停恢复、智能处理频繁操作，并增加本地举报历史记录，避免重复举报。
 // @author       MUKAPP
 // @match        *://www.bilibili.com/video/*
