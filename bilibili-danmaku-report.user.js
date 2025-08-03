@@ -125,6 +125,39 @@
 
     function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
+    /**
+     * 带倒计时的休眠函数
+     * @param {number} duration - 休眠总时长 (ms)
+     * @param {HTMLElement} startButton - 用于显示倒计时的按钮元素
+     */
+    async function sleepWithCountdown(duration, startButton) {
+        return new Promise(resolve => {
+            let remaining = Math.floor(duration / 1000);
+
+            const updateCountdown = () => {
+                // 只有在非暂停状态下才减少时间
+                if (reportState !== 'paused') {
+                    remaining--;
+                }
+
+                if (remaining <= 0) {
+                    clearInterval(intervalId);
+                    resolve();
+                } else {
+                    // 根据状态更新按钮文本
+                    if (reportState === 'paused') {
+                        startButton.textContent = `休眠已暂停 (还剩 ${remaining} 秒)`;
+                    } else {
+                        startButton.textContent = `休眠中 (还剩 ${remaining} 秒)...`;
+                    }
+                }
+            };
+
+            const intervalId = setInterval(updateCountdown, 1000);
+            updateCountdown(); // 立即执行一次以设置初始文本
+        });
+    }
+
     function getVideoInfo() {
         return new Promise((resolve) => {
             const eventListener = (event) => {
@@ -251,12 +284,10 @@
             if (reportState === 'paused') continue;
 
             if (!success && retries >= maxRetries) {
-                // 如果连续重试失败，则进入长时间休眠
                 logToUI(`重试 ${maxRetries} 次后依然操作频繁，将<b>自动休眠 5 分钟</b>以等待服务器冷却...`, 'error');
-                startButton.textContent = `休眠中...`;
-                await sleep(300000); // 休眠5分钟
+                // 调用带倒计时的休眠函数
+                await sleepWithCountdown(300000, startButton);
                 logToUI(`休眠结束，尝试继续举报...`, 'warn');
-                // 休眠后不增加 currentIndex，以便重试当前失败的项
                 continue;
             }
 
@@ -338,7 +369,7 @@
             // 检查本地历史记录
             const uniqueKey = getDanmakuUniqueKey(videoInfo.aid, videoInfo.cid, dmid);
             if (reportedHistorySet.has(uniqueKey)) {
-                return; // 如果已在历史记录中，则跳过
+                return;
             }
 
             for (const config of reportConfig) {
@@ -381,24 +412,38 @@
 
         currentIndex = 0;
         startButton.disabled = false;
-        reportState = 'running'; // 确认后，将状态设置为 running
+        reportState = 'running';
         processReportQueue();
     }
 
     function onControlButtonClick() {
         const startButton = document.getElementById('start-report-btn');
-        if (startButton.disabled || startButton.textContent === '休眠中...') return;
+        if (startButton.disabled) return;
+
+        // 增加对休眠状态的判断
+        const isHibernating = startButton.textContent.includes('休眠');
 
         if (reportState === 'running') {
             reportState = 'paused';
-            startButton.textContent = `继续举报 (${currentIndex + 1}/${commentsToReport.length})`;
-            logToUI("<b>举报已暂停。</b>", 'warn');
+            if (isHibernating) {
+                logToUI("<b>休眠已暂停。</b>", 'warn');
+                // 倒计时函数会自动更新按钮文本
+            } else {
+                startButton.textContent = `继续举报 (${currentIndex + 1}/${commentsToReport.length})`;
+                logToUI("<b>举报已暂停。</b>", 'warn');
+            }
             return;
         }
 
         if (reportState === 'paused') {
             reportState = 'running';
-            logToUI("<b>举报已恢复。</b>", 'warn');
+            if (isHibernating) {
+                logToUI("<b>休眠已恢复。</b>", 'warn');
+                // 倒计时函数会自动更新按钮文本
+            } else {
+                logToUI("<b>举报已恢复。</b>", 'warn');
+                // 举报队列会自动更新按钮文本
+            }
             return;
         }
 
