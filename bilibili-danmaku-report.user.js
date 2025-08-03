@@ -167,7 +167,7 @@
                         success = true;
                     } else if (result.message.includes('过于频繁')) {
                         retries++;
-                        retryCooldown += 2000;
+                        retryCooldown += retryCooldown;
                         logToUI(`操作频繁: "<b>${item.text}</b>"，将在 ${retryCooldown / 1000}s 后重试 (${retries}/${maxRetries})...`, 'warn');
                         await sleep(retryCooldown);
                         if (reportState === 'paused') break;
