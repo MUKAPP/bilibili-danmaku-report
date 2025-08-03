@@ -81,7 +81,7 @@
     }
     // --- WBI 签名结束 ---
 
-    // --- 【新增】举报历史记录管理 ---
+    // --- 举报历史记录管理 ---
     /**
      * @description 生成弹幕的唯一标识符
      * @param {string} aid - 视频aid
@@ -188,7 +188,7 @@
             const item = commentsToReport[currentIndex];
             const uniqueKey = getDanmakuUniqueKey(videoInfo.aid, videoInfo.cid, item.dmid);
 
-            // 【修改】增加一层保险检查，正常情况下在筛选时已被过滤
+            // 增加一层保险检查，正常情况下在筛选时已被过滤
             if (reportedHistorySet.has(uniqueKey)) {
                 logToUI(`跳过已举报: "<b>${item.text}</b>"`, 'info');
                 currentIndex++;
@@ -234,31 +234,34 @@
 
                     } else if (result.message.includes('过于频繁')) {
                         retries++;
-                        retryCooldown += retryCooldown;
+                        retryCooldown += 4000;
                         logToUI(`操作频繁: "<b>${item.text}</b>"，将在 ${retryCooldown / 1000}s 后重试 (${retries}/${maxRetries})...`, 'warn');
                         await sleep(retryCooldown);
                     } else {
                         logToUI(`失败: "<b>${item.text}</b>" - ${result.message}`, 'error');
-                        await sleep(3000); // 失败后等待一下
-                        break; // 跳出重试循环
+                        await sleep(3000);
+                        break;
                     }
                 } catch (e) {
                     logToUI(`网络错误: "<b>${item.text}</b>" - ${e.message}`, 'error');
-                    break; // 网络错误也跳出重试
+                    break;
                 }
             }
 
             if (reportState === 'paused') continue;
 
             if (!success && retries >= maxRetries) {
-                logToUI(`重试 ${maxRetries} 次后依然操作频繁，<b>自动暂停举报</b>。请稍后手动继续。`, 'error');
-                reportState = 'paused';
-                startButton.textContent = `继续举报 (${currentIndex + 1}/${commentsToReport.length})`;
-                return; // 暂停后退出函数，等待用户操作
+                // 如果连续重试失败，则进入长时间休眠
+                logToUI(`重试 ${maxRetries} 次后依然操作频繁，将<b>自动休眠 5 分钟</b>以等待服务器冷却...`, 'error');
+                startButton.textContent = `休眠中...`;
+                await sleep(300000); // 休眠5分钟
+                logToUI(`休眠结束，尝试继续举报...`, 'warn');
+                // 休眠后不增加 currentIndex，以便重试当前失败的项
+                continue;
             }
 
             currentIndex++;
-            if (success) { // 只有成功才应用基础冷却
+            if (success) {
                 await sleep(baseCooldown);
             }
         }
@@ -325,14 +328,14 @@
         }
 
         logToUI(`获取到 ${allDanmaku.length} 条弹幕，根据规则和历史记录开始筛选...`);
-        const reportedDmidsInThisTask = new Set(); // 用于本次任务内的去重
+        const reportedDmidsInThisTask = new Set();
         commentsToReport = [];
         allDanmaku.forEach(dm => {
             const commentText = dm.content.trim();
             const dmid = dm.idStr;
             if (!commentText || !dmid || reportedDmidsInThisTask.has(dmid)) return;
 
-            // 【修改】检查本地历史记录
+            // 检查本地历史记录
             const uniqueKey = getDanmakuUniqueKey(videoInfo.aid, videoInfo.cid, dmid);
             if (reportedHistorySet.has(uniqueKey)) {
                 return; // 如果已在历史记录中，则跳过
@@ -384,7 +387,7 @@
 
     function onControlButtonClick() {
         const startButton = document.getElementById('start-report-btn');
-        if (startButton.disabled) return;
+        if (startButton.disabled || startButton.textContent === '休眠中...') return;
 
         if (reportState === 'running') {
             reportState = 'paused';
@@ -480,7 +483,6 @@
             startButton.textContent = '开始举报';
         }
         logToUI('任务已重置。');
-        // 重置时也重新加载一下历史记录，以防万一
         loadReportHistory();
     }
 
@@ -621,7 +623,6 @@
             document.onmouseup = () => { isDragging = false; document.onmousemove = null; document.onmouseup = null; };
         };
 
-        // 先加载历史记录，再加载配置
         loadReportHistory();
         loadConfig();
         console.log('Bilibili 弹幕批量举报脚本：UI注入成功。');
